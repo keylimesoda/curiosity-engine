@@ -14,18 +14,34 @@ echo "🔍 Curiosity Engine Health Check"
 echo "================================"
 echo ""
 
+# Get file mtime in epoch seconds (GNU stat first, then BSD/macOS stat).
+get_mtime_epoch() {
+  local target="$1"
+  local mtime
+  mtime=$(stat -c %Y "$target" 2>/dev/null || stat -f %m "$target" 2>/dev/null || echo "")
+  if [ -n "$mtime" ] && [ "$mtime" -eq "$mtime" ] 2>/dev/null; then
+    echo "$mtime"
+    return 0
+  fi
+  return 1
+}
+
 # File freshness
 echo "📁 File Freshness:"
 for f in CURIOSITY.md questions.md hits.md competence.md; do
   filepath="$CURIOSITY_DIR/$f"
   if [ -f "$filepath" ]; then
-    days_old=$(( ($(date +%s) - $(stat -f %m "$filepath" 2>/dev/null || stat -c %Y "$filepath" 2>/dev/null)) / 86400 ))
-    if [ "$days_old" -gt 7 ]; then
-      echo "  ⚠️  $f — ${days_old} days old (stale)"
-    elif [ "$days_old" -gt 3 ]; then
-      echo "  🟡 $f — ${days_old} days old"
+    if mtime_epoch=$(get_mtime_epoch "$filepath"); then
+      days_old=$(( ($(date +%s) - mtime_epoch) / 86400 ))
+      if [ "$days_old" -gt 7 ]; then
+        echo "  ⚠️  $f — ${days_old} days old (stale)"
+      elif [ "$days_old" -gt 3 ]; then
+        echo "  🟡 $f — ${days_old} days old"
+      else
+        echo "  ✅ $f — ${days_old} days old"
+      fi
     else
-      echo "  ✅ $f — ${days_old} days old"
+      echo "  ⚠️  $f — unable to determine age"
     fi
   else
     echo "  ⬜ $f — not created yet"
